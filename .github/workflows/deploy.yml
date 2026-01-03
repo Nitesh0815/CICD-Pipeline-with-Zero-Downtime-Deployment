@@ -70,6 +70,10 @@ jobs:
             }
             EOF"
 
+            # Re-link it to make sure it's active
+            sudo ln -sf /etc/nginx/sites-available/default /etc/nginx/sites-enabled/default
+            sudo systemctl restart nginx
+
             # 6. Reload Nginx (This is the Zero-Downtime moment)
             sudo systemctl reload nginx
             echo "Traffic switched to $TARGET_COLOR"
