@@ -45,7 +45,7 @@ jobs:
                 OLD_COLOR="green"
             fi
 
-            echo "Starting Deployment: Moving from $OLD_COLOR to $TARGET_COLOR"
+            echo "🚀 Starting Deployment: Moving from $OLD_COLOR to $TARGET_COLOR"
 
             # 2. Pull the fresh image from Docker Hub
             sudo docker pull ${{ secrets.DOCKER_USERNAME }}/my-app:latest
@@ -60,7 +60,7 @@ jobs:
             echo "Waiting for container to start..."
             for i in {1..10}; do
               if curl -s http://127.0.0.1:$TARGET_PORT > /dev/null; then
-                echo "New container is healthy!"
+                echo "✅ New container is healthy!"
                 break
               fi
               echo "Retrying health check ($i/10)..."
@@ -86,9 +86,9 @@ jobs:
 
             # 7. Apply the changes instantly
             sudo systemctl reload nginx
-            echo "Traffic switched to $TARGET_COLOR"
+            echo "🔄 Traffic switched to $TARGET_COLOR"
 
             # 8. Cleanup: Stop the old version and remove unused images
             sudo docker rm -f app-$OLD_COLOR || true
             sudo docker image prune -af
-            echo "Cleanup complete. Deployment successful!"
+            echo "🧹 Cleanup complete. Deployment successful!"
