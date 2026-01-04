@@ -1,0 +1,65 @@
+pipeline {
+    agent any
+    
+    environment {
+        DOCKER_USER = "nitesh1508" // Your DockerHub username
+        PROD_IP = "REPLACE_WITH_PROD_IP" // Or use Jenkins credentials
+    }
+
+    stages {
+        stage('Build Image') {
+            steps {
+                sh "docker build -t ${DOCKER_USER}/my-app:latest ."
+            }
+        }
+
+        stage('Push to DockerHub') {
+            steps {
+                withCredentials([usernamePassword(credentialsId: 'docker-hub-creds', passwordVariable: 'PASS', usernameVariable: 'USER')]) {
+                    sh "echo ${PASS} | docker login -u ${USER} --password-stdin"
+                    sh "docker push ${DOCKER_USER}/my-app:latest"
+                }
+            }
+        }
+
+        stage('Blue-Green Deploy') {
+            steps {
+                // We use SSH to run the switch logic on the PROD server
+                withCredentials([sshUserPrivateKey(credentialsId: 'ec2-ssh-key', keyFileVariable: 'KEY')]) {
+                    sh """
+                    ssh -o StrictHostKeyChecking=no -i ${KEY} ubuntu@${PROD_IP} '
+                        if sudo docker ps | grep -q "app-blue"; then
+                            TARGET="green"
+                            PORT="8082"
+                            OLD="blue"
+                        else
+                            TARGET="blue"
+                            PORT="8081"
+                            OLD="green"
+                        fi
+
+                        sudo docker pull ${DOCKER_USER}/my-app:latest
+                        sudo docker rm -f app-\$TARGET || true
+                        sudo docker run -d --name app-\$TARGET -p \$PORT:80 ${DOCKER_USER}/my-app:latest
+                        
+                        sleep 5
+                        
+                        # Update Nginx
+                        sudo bash -c "cat > /etc/nginx/sites-enabled/default <<EOF
+                        server {
+                            listen 80;
+                            location / {
+                                proxy_pass http://127.0.0.1:\$PORT;
+                                proxy_set_header Host \\\$host;
+                            }
+                        }
+                        EOF"
+                        sudo systemctl reload nginx
+                        sudo docker rm -f app-\$OLD || true
+                    '
+                    """
+                }
+            }
+        }
+    }
+}

@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DevOps Pipeline | Live Deployment</title>
+    <style>
+        :root {
+            --primary-blue: #2563eb;
+            --primary-green: #10b981;
+            /* CHANGE THIS TO --primary-green IF YOU ARE DEPLOYING VERSION 2 */
+            --status-color: var(--primary-blue); 
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f8fafc;
+            margin: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            color: #1e293b;
+        }
+
+        .container {
+            background: white;
+            padding: 2.5rem;
+            border-radius: 1rem;
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1);
+            text-align: center;
+            max-width: 450px;
+            width: 90%;
+        }
+
+        .status-badge {
+            display: inline-flex;
+            align-items: center;
+            background: #f1f5f9;
+            padding: 0.5rem 1rem;
+            border-radius: 2rem;
+            font-weight: 600;
+            font-size: 0.875rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .pulse {
+            height: 10px;
+            width: 10px;
+            background-color: var(--status-color);
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 8px;
+            box-shadow: 0 0 0 0 var(--status-color);
+            animation: pulse-animation 2s infinite;
+        }
+
+        @keyframes pulse-animation {
+            0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(37, 99, 235, 0.7); }
+            70% { transform: scale(1); box-shadow: 0 0 0 10px rgba(37, 99, 235, 0); }
+            100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(37, 99, 235, 0); }
+        }
+
+        h1 { margin: 0; font-size: 1.75rem; color: #0f172a; }
+        p { color: #64748b; line-height: 1.6; }
+
+        .info-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+            margin-top: 2rem;
+            padding-top: 2rem;
+            border-top: 1px solid #f1f5f9;
+        }
+
+        .info-item span { display: block; font-size: 0.75rem; color: #94a3b8; text-transform: uppercase; }
+        .info-item strong { font-size: 1rem; color: #334155; }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <div class="status-badge">
+            <span class="pulse"></span>
+            System Live: Blue Environment
+        </div>
+        
+        <h1>Deployment Success!</h1>
+        <p>This application was deployed using <strong>Terraform</strong>, <strong>Jenkins</strong>, and <strong>Docker</strong> with zero downtime.</p>
+
+        <div class="info-grid">
+            <div class="info-item">
+                <span>Version</span>
+                <strong>1.0.0</strong>
+            </div>
+            <div class="info-item">
+                <span>Environment</span>
+                <strong>Production</strong>
+            </div>
+        </div>
+    </div>
+
+</body>
+</html>

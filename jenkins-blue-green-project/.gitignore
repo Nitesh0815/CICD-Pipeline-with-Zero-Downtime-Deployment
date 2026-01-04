@@ -1,0 +1,8 @@
+# Ignore Terraform local directories
+.terraform/
+*.tfstate
+*.tfstate.backup
+.terraform.lock.hcl
+
+# Ignore executable files
+*.exe
