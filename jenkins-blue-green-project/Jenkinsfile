@@ -1,65 +1,97 @@
 pipeline {
     agent any
-    
+
     environment {
-        DOCKER_USER = "nitesh1508"  // Replace with your DockerHub username or ECR URI
-        PROD_IP = "13.220.134.11"  // Pulls from Terraform
+        DOCKER_USER = "nitesh1508"
+        IMAGE_NAME  = "my-app"
+        PROD_IP     = "13.220.134.11"   // Terraform output
     }
 
     stages {
-        stage('Build Image') {
+
+        stage('Checkout') {
             steps {
-                sh "docker build -t ${DOCKER_USER}/my-app:latest ."
+                checkout scm
             }
         }
 
-        stage('Push to DockerHub') {
+        stage('Build Docker Image') {
             steps {
-                withCredentials([usernamePassword(credentialsId: 'docker-hub-creds', passwordVariable: 'PASS', usernameVariable: 'USER')]) {
-                    sh "echo ${PASS} | docker login -u ${USER} --password-stdin"
-                    sh 'docker build -t nitesh1508/my-app:latest -f jenkins-blue-green-project/Dockerfile jenkins-blue-green-project'
+                dir('jenkins-blue-green-project') {
+                    sh "docker build -t ${DOCKER_USER}/${IMAGE_NAME}:latest ."
                 }
             }
         }
 
-        stage('Blue-Green Deploy') {
+        stage('Push Image to DockerHub') {
             steps {
-                script {
-                    withCredentials([sshUserPrivateKey(credentialsId: 'ec2-ssh-key', keyFileVariable: 'KEY')]) {
-                        sh """
-                        ssh -o StrictHostKeyChecking=no -i ${KEY} ubuntu@${PROD_IP} '
-                            if sudo docker ps | grep -q "app-blue"; then
-                                TARGET="green"
-                                PORT="8082"
-                                OLD="blue"
-                            else
-                                TARGET="blue"
-                                PORT="8081"
-                                OLD="green"
-                            fi
+                withCredentials([
+                    usernamePassword(
+                        credentialsId: 'docker-hub-creds',
+                        usernameVariable: 'DOCKER_USERNAME',
+                        passwordVariable: 'DOCKER_PASSWORD'
+                    )
+                ]) {
+                    sh '''
+                        echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin
+                        docker push ${DOCKER_USER}/${IMAGE_NAME}:latest
+                    '''
+                }
+            }
+        }
 
-                            sudo docker pull ${DOCKER_USER}/my-app:latest
-                            sudo docker rm -f app-${TARGET} || true
-                            sudo docker run -d --name app-${TARGET} -p ${PORT}:80 ${DOCKER_USER}/my-app:latest
-                            
-                            sleep 5
-                            
-                            sudo bash -c "cat > /etc/nginx/sites-enabled/default <<EOF
-                            server {
-                                listen 80;
-                                location / {
-                                    proxy_pass http://127.0.0.1:${PORT};
-                                    proxy_set_header Host \$host;
-                                }
+        stage('Blue-Green Deployment') {
+            steps {
+                withCredentials([
+                    sshUserPrivateKey(
+                        credentialsId: 'ec2-ssh-key',
+                        keyFileVariable: 'SSH_KEY'
+                    )
+                ]) {
+                    sh """
+                    ssh -o StrictHostKeyChecking=no -i ${SSH_KEY} ubuntu@${PROD_IP} '
+                        if sudo docker ps | grep -q app-blue; then
+                            TARGET="green"
+                            PORT="8082"
+                            OLD="blue"
+                        else
+                            TARGET="blue"
+                            PORT="8081"
+                            OLD="green"
+                        fi
+
+                        sudo docker pull ${DOCKER_USER}/${IMAGE_NAME}:latest
+                        sudo docker rm -f app-\${TARGET} || true
+                        sudo docker run -d --name app-\${TARGET} -p \${PORT}:80 ${DOCKER_USER}/${IMAGE_NAME}:latest
+
+                        sleep 5
+
+                        sudo bash -c "cat > /etc/nginx/sites-enabled/default <<EOF
+                        server {
+                            listen 80;
+                            location / {
+                                proxy_pass http://127.0.0.1:\${PORT};
+                                proxy_set_header Host \\$host;
+                                proxy_set_header X-Real-IP \\$remote_addr;
                             }
-                            EOF"
-                            sudo systemctl reload nginx
-                            sudo docker rm -f app-${OLD} || true
-                        '
-                        """
-                    }
+                        }
+                        EOF"
+
+                        sudo systemctl reload nginx
+                        sudo docker rm -f app-\${OLD} || true
+                    '
+                    """
                 }
             }
+        }
+    }
+
+    post {
+        success {
+            echo "✅ Deployment completed successfully with ZERO downtime"
+        }
+        failure {
+            echo "❌ Pipeline failed. Check logs."
         }
     }
 }
