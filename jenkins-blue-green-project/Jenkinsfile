@@ -8,6 +8,7 @@ pipeline {
     }
 
     stages {
+
         stage('Checkout Source Code') {
             steps {
                 checkout scm
@@ -17,7 +18,9 @@ pipeline {
         stage('Build Docker Image') {
             steps {
                 dir('jenkins-blue-green-project') {
-                    sh "docker build -t ${DOCKER_USER}/${IMAGE_NAME}:latest ."
+                    sh '''
+                        docker build -t ${DOCKER_USER}/${IMAGE_NAME}:latest .
+                    '''
                 }
             }
         }
@@ -51,37 +54,26 @@ pipeline {
                         ssh -o StrictHostKeyChecking=no -i \$SSH_KEY ubuntu@${PROD_IP} '
                             set -e
 
+                            # Pull latest image
+                            docker pull ${DOCKER_USER}/${IMAGE_NAME}:latest
+
+                            # Stop old containers if exist
+                            docker rm -f app-blue || true
+                            docker rm -f app-green || true
+
                             # Determine target container
-                            if docker ps | grep -q app-blue; then
+                            if docker ps -a --format "{{.Names}}" | grep -q "app-blue"; then
                                 TARGET=green
                                 PORT=8082
-                                OLD=blue
                             else
                                 TARGET=blue
                                 PORT=8081
-                                OLD=green
                             fi
 
                             echo "Deploying \$TARGET on port \$PORT"
 
-                            docker pull ${DOCKER_USER}/${IMAGE_NAME}:latest
-                            docker rm -f app-\$TARGET || true
+                            # Run new container
                             docker run -d --name app-\$TARGET -p \$PORT:80 ${DOCKER_USER}/${IMAGE_NAME}:latest
-
-                            # Update host Nginx to proxy the correct port
-                            sudo tee /etc/nginx/sites-enabled/default > /dev/null <<EOF
-server {
-    listen 80;
-    location / {
-        proxy_pass http://127.0.0.1:\$PORT;
-        proxy_set_header Host \$host;
-        proxy_set_header X-Real-IP \$remote_addr;
-    }
-}
-EOF
-
-                            sudo systemctl reload nginx
-                            docker rm -f app-\$OLD || true
 
                             echo "Blue-Green deployment completed ✅"
                         '
@@ -96,7 +88,7 @@ EOF
             echo "✅ Pipeline completed successfully with ZERO downtime"
         }
         failure {
-            echo "❌ Pipeline failed. Check Jenkins logs"
+            echo "❌ Pipeline failed. Check Jenkins logs for details."
         }
     }
 }
