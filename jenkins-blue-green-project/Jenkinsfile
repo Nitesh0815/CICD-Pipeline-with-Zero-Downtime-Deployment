@@ -4,7 +4,7 @@ pipeline {
     environment {
         DOCKER_USER = "nitesh1508"
         IMAGE_NAME  = "my-app"
-        PROD_IP     = "13.220.134.11"
+        PROD_IP     = "13.220.134.11"  // Your EC2 instance IP
     }
 
     stages {
@@ -18,7 +18,9 @@ pipeline {
         stage('Build Docker Image') {
             steps {
                 dir('jenkins-blue-green-project') {
-                    sh "docker build -t ${DOCKER_USER}/${IMAGE_NAME}:latest ."
+                    sh '''
+                        docker build -t ${DOCKER_USER}/${IMAGE_NAME}:latest .
+                    '''
                 }
             }
         }
@@ -48,32 +50,41 @@ pipeline {
                         keyFileVariable: 'SSH_KEY'
                     )
                 ]) {
-                    sh '''
-                        ssh -o StrictHostKeyChecking=no -i $SSH_KEY ubuntu@''' + PROD_IP + ''' << 'EOF'
-                        set -e
+                    sh """
+                        ssh -o StrictHostKeyChecking=no -i \$SSH_KEY ubuntu@${PROD_IP} '
+                            set -e
 
-                        if docker ps | grep -q app-blue; then
-                            TARGET=green
-                            PORT=8082
-                            OLD=blue
-                        else
-                            TARGET=blue
-                            PORT=8081
-                            OLD=green
-                        fi
+                            # Determine target and old containers
+                            if docker ps | grep -q app-blue; then
+                                TARGET=green
+                                PORT=8082
+                                OLD=blue
+                            else
+                                TARGET=blue
+                                PORT=8081
+                                OLD=green
+                            fi
 
-                        echo "Deploying $TARGET on port $PORT"
+                            echo "Deploying \$TARGET on port \$PORT"
 
-                        docker pull ''' + DOCKER_USER + '''/''' + IMAGE_NAME + ''':latest
-                        docker rm -f app-$TARGET || true
-                        docker run -d --name app-$TARGET -p $PORT:80 ''' + DOCKER_USER + '''/''' + IMAGE_NAME + ''':latest
+                            # Pull latest image
+                            docker pull ${DOCKER_USER}/${IMAGE_NAME}:latest
 
-                        sleep 5
-                        docker rm -f app-$OLD || true
+                            # Remove target container if exists
+                            docker rm -f app-\$TARGET || true
 
-                        echo "Blue-Green deployment completed"
-                        EOF
-                    '''
+                            # Run new container
+                            docker run -d --name app-\$TARGET -p \$PORT:80 ${DOCKER_USER}/${IMAGE_NAME}:latest
+
+                            # Wait for app to start
+                            sleep 5
+
+                            # Remove old container
+                            docker rm -f app-\$OLD || true
+
+                            echo "Blue-Green deployment completed ✅"
+                        '
+                    """
                 }
             }
         }
@@ -81,10 +92,10 @@ pipeline {
 
     post {
         success {
-            echo "✅ ZERO-DOWNTIME Blue-Green Deployment Successful"
+            echo "✅ Pipeline completed successfully with ZERO downtime"
         }
         failure {
-            echo "❌ Pipeline failed"
+            echo "❌ Pipeline failed. Check Jenkins logs for details."
         }
     }
 }
