@@ -2,16 +2,6 @@ provider "aws" {
   region = var.region
 }
 
-terraform {
-  backend "s3" {
-    bucket         = "my-terraform-state-bucket-1508"
-    key            = "cicd-pipeline/terraform.tfstate"
-    region         = "us-east-1"
-    dynamodb_table = "terraform-lock-table"
-    encrypt        = true
-  }
-}
-
 data "aws_ami" "ubuntu" {
   most_recent = true
   owners      = ["099720109477"]
