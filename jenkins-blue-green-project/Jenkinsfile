@@ -1,39 +1,75 @@
-stage('Blue-Green Deployment') {
-    steps {
-        withCredentials([
-            sshUserPrivateKey(
-                credentialsId: 'ec2-ssh-key',
-                keyFileVariable: 'SSH_KEY'
-            )
-        ]) {
-            sh """
-                ssh -o StrictHostKeyChecking=no -i \$SSH_KEY ubuntu@${PROD_IP} '
-                    set -e
+pipeline {
+    agent any
 
-                    # Determine target and old containers
-                    if docker ps | grep -q app-blue; then
-                        TARGET=green
-                        PORT=8082
-                        OLD=blue
-                    else
-                        TARGET=blue
-                        PORT=8081
-                        OLD=green
-                    fi
+    environment {
+        DOCKER_USER = "nitesh1508"
+        IMAGE_NAME  = "my-app"
+        PROD_IP     = "13.220.134.11"  // Your EC2 instance IP
+    }
 
-                    echo "Deploying \$TARGET on port \$PORT"
+    stages {
+        stage('Checkout Source Code') {
+            steps {
+                checkout scm
+            }
+        }
 
-                    # Pull latest image
-                    docker pull ${DOCKER_USER}/${IMAGE_NAME}:latest
+        stage('Build Docker Image') {
+            steps {
+                dir('jenkins-blue-green-project') {
+                    sh "docker build -t ${DOCKER_USER}/${IMAGE_NAME}:latest ."
+                }
+            }
+        }
 
-                    # Remove target container if exists
-                    docker rm -f app-\$TARGET || true
+        stage('Push Image to DockerHub') {
+            steps {
+                withCredentials([
+                    usernamePassword(
+                        credentialsId: 'docker-hub-creds',
+                        usernameVariable: 'DOCKER_USERNAME',
+                        passwordVariable: 'DOCKER_PASSWORD'
+                    )
+                ]) {
+                    sh '''
+                        echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin
+                        docker push ${DOCKER_USER}/${IMAGE_NAME}:latest
+                    '''
+                }
+            }
+        }
 
-                    # Run new container
-                    docker run -d --name app-\$TARGET -p \$PORT:80 ${DOCKER_USER}/${IMAGE_NAME}:latest
+        stage('Blue-Green Deployment') {
+            steps {
+                withCredentials([
+                    sshUserPrivateKey(
+                        credentialsId: 'ec2-ssh-key',
+                        keyFileVariable: 'SSH_KEY'
+                    )
+                ]) {
+                    sh """
+                        ssh -o StrictHostKeyChecking=no -i \$SSH_KEY ubuntu@${PROD_IP} '
+                            set -e
 
-                    # Update host Nginx to point to the container
-                    sudo tee /etc/nginx/sites-enabled/default > /dev/null <<EOF
+                            # Determine target container
+                            if docker ps | grep -q app-blue; then
+                                TARGET=green
+                                PORT=8082
+                                OLD=blue
+                            else
+                                TARGET=blue
+                                PORT=8081
+                                OLD=green
+                            fi
+
+                            echo "Deploying \$TARGET on port \$PORT"
+
+                            docker pull ${DOCKER_USER}/${IMAGE_NAME}:latest
+                            docker rm -f app-\$TARGET || true
+                            docker run -d --name app-\$TARGET -p \$PORT:80 ${DOCKER_USER}/${IMAGE_NAME}:latest
+
+                            # Update host Nginx to proxy the correct port
+                            sudo tee /etc/nginx/sites-enabled/default > /dev/null <<EOF
 server {
     listen 80;
     location / {
@@ -44,15 +80,23 @@ server {
 }
 EOF
 
-                    # Reload Nginx
-                    sudo systemctl reload nginx
+                            sudo systemctl reload nginx
+                            docker rm -f app-\$OLD || true
 
-                    # Remove old container
-                    docker rm -f app-\$OLD || true
+                            echo "Blue-Green deployment completed ✅"
+                        '
+                    """
+                }
+            }
+        }
+    }
 
-                    echo "Blue-Green deployment completed ✅"
-                '
-            """
+    post {
+        success {
+            echo "✅ Pipeline completed successfully with ZERO downtime"
+        }
+        failure {
+            echo "❌ Pipeline failed. Check Jenkins logs"
         }
     }
 }
