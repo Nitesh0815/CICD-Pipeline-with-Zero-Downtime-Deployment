@@ -3,7 +3,7 @@ pipeline {
     
     environment {
         DOCKER_USER = "nitesh1508"  // Replace with your DockerHub username or ECR URI
-        PROD_IP = sh(script: 'terraform output -raw prod_ip', returnStdout: true).trim()  // Pulls from Terraform
+        PROD_IP = "13.220.134.11"  // Pulls from Terraform
     }
 
     stages {
