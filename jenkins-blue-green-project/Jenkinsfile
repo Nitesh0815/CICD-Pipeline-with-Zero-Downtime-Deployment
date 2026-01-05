@@ -4,7 +4,7 @@ pipeline {
     environment {
         DOCKER_USER = "nitesh1508"
         IMAGE_NAME  = "my-app"
-        PROD_IP     = "13.220.134.11"   // From Terraform output
+        PROD_IP     = "13.220.134.11"
     }
 
     stages {
@@ -18,9 +18,7 @@ pipeline {
         stage('Build Docker Image') {
             steps {
                 dir('jenkins-blue-green-project') {
-                    sh '''
-                        docker build -t ${DOCKER_USER}/${IMAGE_NAME}:latest .
-                    '''
+                    sh "docker build -t ${DOCKER_USER}/${IMAGE_NAME}:latest ."
                 }
             }
         }
@@ -50,45 +48,32 @@ pipeline {
                         keyFileVariable: 'SSH_KEY'
                     )
                 ]) {
-                    sh """
-                    ssh -o StrictHostKeyChecking=no -i ${SSH_KEY} ubuntu@${PROD_IP} '
+                    sh '''
+                        ssh -o StrictHostKeyChecking=no -i $SSH_KEY ubuntu@''' + PROD_IP + ''' << 'EOF'
                         set -e
 
-                        if sudo docker ps | grep -q app-blue; then
-                            TARGET="green"
-                            PORT="8082"
-                            OLD="blue"
+                        if docker ps | grep -q app-blue; then
+                            TARGET=green
+                            PORT=8082
+                            OLD=blue
                         else
-                            TARGET="blue"
-                            PORT="8081"
-                            OLD="green"
+                            TARGET=blue
+                            PORT=8081
+                            OLD=green
                         fi
 
-                        echo "Deploying to \$TARGET on port \$PORT"
+                        echo "Deploying $TARGET on port $PORT"
 
-                        sudo docker pull ${DOCKER_USER}/${IMAGE_NAME}:latest
-                        sudo docker rm -f app-\$TARGET || true
-                        sudo docker run -d --name app-\$TARGET -p \$PORT:80 ${DOCKER_USER}/${IMAGE_NAME}:latest
+                        docker pull ''' + DOCKER_USER + '''/''' + IMAGE_NAME + ''':latest
+                        docker rm -f app-$TARGET || true
+                        docker run -d --name app-$TARGET -p $PORT:80 ''' + DOCKER_USER + '''/''' + IMAGE_NAME + ''':latest
 
                         sleep 5
-
-                        sudo bash -c "cat > /etc/nginx/sites-enabled/default <<EOF
-server {
-    listen 80;
-    location / {
-        proxy_pass http://127.0.0.1:\$PORT;
-        proxy_set_header Host \\\$host;
-        proxy_set_header X-Real-IP \\\$remote_addr;
-    }
-}
-EOF"
-
-                        sudo systemctl reload nginx
-                        sudo docker rm -f app-\$OLD || true
+                        docker rm -f app-$OLD || true
 
                         echo "Blue-Green deployment completed"
-                    '
-                    """
+                        EOF
+                    '''
                 }
             }
         }
@@ -96,10 +81,10 @@ EOF"
 
     post {
         success {
-            echo "✅ Deployment completed successfully with ZERO downtime"
+            echo "✅ ZERO-DOWNTIME Blue-Green Deployment Successful"
         }
         failure {
-            echo "❌ Pipeline failed. Check Jenkins logs for details."
+            echo "❌ Pipeline failed"
         }
     }
 }
