@@ -1,95 +1,195 @@
-# 🚀 Automated Zero-Downtime Blue-Green Deployment
+# 🚀 Automated Zero-Downtime Blue-Green Deployment  
+### (Implemented Using **GitHub Actions** & **Jenkins**)
 
-This repository contains a full-stack DevOps project that automates the deployment of a web application on **AWS** using **Terraform**, **Docker**, and **GitHub Actions**. It features a custom **Blue-Green deployment strategy** to ensure the website stays live (zero downtime) even while updates are being pushed.
+This repository demonstrates a **production-ready CI/CD pipeline** for deploying a containerized web application on **AWS EC2** with **zero downtime** using a **Blue-Green deployment strategy**.
 
+The same project has been **successfully implemented using two CI/CD tools**:
 
+- ✅ **GitHub Actions (Cloud-native CI/CD)**
+- ✅ **Jenkins (Self-hosted CI/CD on AWS)**
 
----
-
-## 🏗 System Architecture
-The pipeline follows a modern CI/CD flow:
-1.  **Infrastructure:** Terraform provisions an AWS EC2 instance and configures security groups.
-2.  **Continuous Integration:** GitHub Actions builds a Docker image and pushes it to Docker Hub.
-3.  **Continuous Deployment:** GitHub Actions SSHes into the EC2, identifies the inactive environment, deploys the new container, and flips the **Nginx** switch.
-
-
+This showcases flexibility, real-world DevOps skills, and tool-agnostic pipeline design.
 
 ---
 
-## 🛠 Features
-- **Infrastructure as Code (IaC):** Repeatable server setup using Terraform.
-- **Reverse Proxy:** Nginx routes traffic to the correct Docker container.
-- **Zero-Downtime:** Automated Blue-Green switching logic.
-- **Self-Healing:** Scripted health checks ensure the new version is running before killing the old one.
-- **Automated Cleanup:** Automatic removal of old Docker images to save disk space.
+## 🏗️ System Architecture Overview
+
+### Common Architecture (Both Pipelines)
+- **Infrastructure Provisioning:** Terraform
+- **Compute:** AWS EC2 (Ubuntu)
+- **Containerization:** Docker + Docker Hub
+- **Deployment Strategy:** Blue-Green (Zero Downtime)
+- **Web Server:** Nginx
+- **Ports:**
+  - `8081` → Blue Environment
+  - `8082` → Green Environment
 
 ---
 
-## 📝 Steps Taken (The Journey)
+## 🧰 Tools & Technologies Used
 
-### Phase 1: Automated Provisioning
-* Created `main.tf` to define the AWS environment.
-* Used **User Data** scripts to pre-install Docker and Nginx, ensuring the server is ready for deployment the moment it's created.
-
-### Phase 2: Containerization
-* Developed a `Dockerfile` based on `nginx:alpine` for a lightweight, secure application footprint.
-* Configured Docker Hub integration for version-controlled image storage.
-
-### Phase 3: Blue-Green Logic Development
-* Wrote a custom Bash script within the GitHub Actions workflow to handle environment detection.
-* **The Logic:** If `app-blue` is running, deploy to `app-green` (Port 8082). If `app-green` is running, deploy to `app-blue` (Port 8081).
-
-### Phase 4: Troubleshooting & Optimization
-* **Nginx Fixes:** Solved a `502 Bad Gateway` issue by correctly escaping Nginx variables (`\$host`) inside the deployment script.
-* **Permission Management:** Fixed Docker socket permission issues to allow non-root deployments.
+- **AWS EC2**
+- **Terraform (IaC)**
+- **Docker & Docker Hub**
+- **Nginx**
+- **GitHub Actions**
+- **Jenkins**
+- **Shell Scripting**
+- **Blue-Green Deployment**
 
 ---
 
-## 🚀 Deployment Instructions
+## 🔁 CI/CD Implementation Methods
 
-### 1. Prerequisites
-- AWS Account & CLI configured.
-- Docker Hub account.
-- GitHub repository secrets configured:
-  - `HOST_IP`: Your EC2 Public IP.
-  - `EC2_SSH_KEY`: Your `.pem` private key.
-  - `DOCKER_USERNAME`: Docker Hub ID.
-  - `DOCKER_PASSWORD`: Docker Hub Token.
+## 🟦 Method 1: CI/CD Using GitHub Actions
 
-### 2. Infrastructure
+### Workflow Summary
+1. Developer pushes code to `main` branch
+2. GitHub Actions pipeline triggers automatically
+3. Docker image is built and pushed to Docker Hub
+4. Pipeline SSHs into EC2
+5. Detects inactive environment (Blue/Green)
+6. Deploys new container
+7. Switches traffic with **zero downtime**
+
+### Key Highlights
+- Fully cloud-native CI/CD
+- No server maintenance required
+- Secure secrets management using GitHub Secrets
+- Automated cleanup of old containers/images
+
+---
+
+## 🟥 Method 2: CI/CD Using Jenkins (Self-Hosted)
+
+### Jenkins Infrastructure
+- Jenkins server provisioned using **Terraform**
+- Jenkins runs on a dedicated **AWS EC2 instance**
+- IAM Role attached for Docker & ECR access
+- Jenkins installed via **user-data script**
+
+### Jenkins Pipeline Flow
+1. Jenkins pulls source code from GitHub
+2. Builds Docker image
+3. Pushes image to Docker Hub
+4. Connects to Production EC2 using SSH
+5. Executes **Blue-Green deployment logic**
+6. Ensures **zero downtime deployment**
+
+### Jenkinsfile Responsibilities
+- Docker image build
+- Docker Hub authentication (Jenkins Credentials)
+- Blue-Green deployment logic
+- Post-build success/failure handling
+
+```groovy
+pipeline {
+    agent any
+    stages {
+        stage('Checkout') { ... }
+        stage('Build Docker Image') { ... }
+        stage('Push to DockerHub') { ... }
+        stage('Blue-Green Deployment') { ... }
+    }
+}
+```
+
+### Why Jenkins?
+- Demonstrates enterprise-grade CI/CD
+- Full pipeline control
+- Widely used in real production environments
+
+---
+
+## 🔐 Security & IAM
+- Custom **Security Group**
+  - SSH (22)
+  - HTTP (80)
+  - Jenkins (8080)
+- IAM Role attached to Jenkins EC2
+- Secure credential handling:
+  - Docker Hub credentials
+  - EC2 SSH private key
+
+---
+
+## 📝 Project Breakdown (Step-by-Step)
+
+### Phase 1: Infrastructure as Code
+- Terraform provisions:
+  - Jenkins EC2
+  - Production EC2
+  - Security Groups
+  - IAM Roles
+- User-data installs Docker, Jenkins & dependencies
+
+### Phase 2: Application Containerization
+- Lightweight `nginx:alpine` Docker image
+- Static HTML deployment
+- Docker health checks enabled
+
+### Phase 3: Blue-Green Deployment Logic
+- Always deploy to **inactive environment**
+- Swap traffic after successful container start
+- Old container removed only after validation
+
+### Phase 4: CI/CD Automation
+- Implemented once using **GitHub Actions**
+- Re-implemented using **Jenkins**
+- Same logic, different CI/CD tools
+
+---
+
+## 🚀 How to Deploy (Quick Start)
+
+### 1️⃣ Provision Infrastructure
 ```bash
 terraform init
 terraform apply -auto-approve
 ```
 
-### 3. Application
+### 2️⃣ GitHub Actions Deployment
 ```bash
-git add .
-git commit -m "Deploying Version 2.0"
+git commit -am "New version deployment"
 git push origin main
 ```
+
+### 3️⃣ Jenkins Deployment
+- Open Jenkins Dashboard
+- Run the pipeline job
+- Monitor build stages
 
 ---
 
 ## 📊 Project Status
-- [x] Infrastructure Provisioned
-- [x] Dockerization Complete
-- [x] CI/CD Pipeline Fully Automated
-- [x] Blue-Green Switching Logic Active
-- [ ] SSL/HTTPS (Upcoming Phase)
+
+- [x] Terraform Infrastructure
+- [x] Dockerized Application
+- [x] GitHub Actions CI/CD
+- [x] Jenkins CI/CD
+- [x] Blue-Green Deployment
+- [x] Zero Downtime Verified
+- [ ] HTTPS / SSL (Future Enhancement)
+
+---
+
+## 💼 Why This Project Matters (Recruiter-Friendly)
+
+✔ Demonstrates **real production DevOps skills**  
+✔ Shows **tool flexibility (GitHub Actions + Jenkins)**  
+✔ Uses **industry-standard practices**  
+✔ Zero-downtime deployments  
+✔ Infrastructure as Code  
 
 ---
 
 ## 📄 License
-This project is open-source and available under the MIT License.
+MIT License — free to use and modify.
 
 ---
 
-### What's next?
-Now that you have your project and your documentation finished:
-1.  **Create a new file** in your repository called `README.md`.
-2.  **Paste the code above** into it.
-3.  **Commit and push** it.
-4.  Go to your GitHub repository page and see how professional it looks!
-
-**Would you like me to help you create a "Project Architecture" diagram using text symbols to include in the README as well?**
+### 📌 Next Improvements (Optional)
+- Add HTTPS with ACM + Nginx
+- Add Monitoring (Prometheus + Grafana)
+- Add Auto Scaling Group
+- Add Rollback Strategy
